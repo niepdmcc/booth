@@ -1419,7 +1419,11 @@
   b.addEventListener('click', function(){ v.muted=!v.muted; if(v.paused) v.play().catch(function(){}); icon(); });
   v.addEventListener('timeupdate', function(){ if(v.duration) bar.style.width=(v.currentTime/v.duration*100)+'%'; });
   v.addEventListener('volumechange', icon);
+  v.muted=false; v.volume=1;
   var p=v.play(); if(p&&p.catch) p.catch(function(){ v.muted=true; icon(); v.play().catch(function(){}); });
+  // إذا منع المتصفح الصوت، يُفتح الصوت مع أول لمسة في الصفحة
+  function unmute(){ if(v.muted){ v.muted=false; v.play().catch(function(){}); icon(); } }
+  ['pointerdown','touchstart','keydown','wheel'].forEach(function(ev){ document.addEventListener(ev, unmute, {once:true, passive:true, capture:true}); });
   icon();
   var cue=document.getElementById('scrollCue');
   window.addEventListener('scroll', function(){ if(cue) cue.style.opacity = window.scrollY>60 ? 0 : ''; }, {passive:true});
