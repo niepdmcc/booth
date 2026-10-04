@@ -400,6 +400,7 @@ async function openPage(c){
   viewer.innerHTML = '';
   const f = document.createElement('iframe');
   f.title = c.name;
+  f.allow = 'autoplay; fullscreen';   // يسمح بتشغيل الفيديو بالصوت داخل الصفحة
   viewer.appendChild(f);
   showViewer(); armIdle();
   try{
