@@ -924,7 +924,7 @@
         <p class="edition-label hero-anim" style="--d:.12s">بنسخته الخامسة</p>
       </div>
       <div class="hero-video hero-anim" style="--d:.25s">
-        <video id="olhemVideo" src="media/olhem.mp4" playsinline autoplay preload="auto"></video>
+        <video id="olhemVideo" src="media/olhem.mp4" playsinline preload="auto"></video>
         <button class="snd" id="olhemSnd" type="button" aria-label="الصوت"></button>
         <div class="vbar"><i id="olhemBar"></i></div>
       </div>
@@ -1420,7 +1420,9 @@
   v.addEventListener('timeupdate', function(){ if(v.duration) bar.style.width=(v.currentTime/v.duration*100)+'%'; });
   v.addEventListener('volumechange', icon);
   v.muted=false; v.volume=1;
-  var p=v.play(); if(p&&p.catch) p.catch(function(){ v.muted=true; icon(); v.play().catch(function(){}); });
+  if (window.parent === window){   // عند فتح الصفحة لوحدها
+    var p=v.play(); if(p&&p.catch) p.catch(function(){ v.muted=true; icon(); v.play().catch(function(){}); });
+  }
   // إذا منع المتصفح الصوت، يُفتح الصوت مع أول لمسة في الصفحة
   function unmute(){ if(v.muted){ v.muted=false; v.play().catch(function(){}); icon(); } }
   ['pointerdown','touchstart','keydown','wheel'].forEach(function(ev){ document.addEventListener(ev, unmute, {once:true, passive:true, capture:true}); });
