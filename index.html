@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>بوابة المعهد الوطني</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500&display=swap">
+<style>
+  /* تخطيط: شعار أعلى الوسط، بطاقات متداخلة في المنتصف، مؤشرات وحسابات أسفل */
+  :root{
+    --bg:#121d29;
+    --bg-deep:#0c141d;
+    --teal:#03808a;
+    --navy:#15284f;
+    --ink:#ffffff;
+    --ink-soft:rgba(255,255,255,.62);
+    --chip:rgba(255,255,255,.08);
+    --chip-line:rgba(255,255,255,.14);
+    --font:"IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  img{-webkit-user-drag:none;max-width:100%}
+
+  .bg{position:fixed;inset:-5%;background:var(--bg) url(img/bg.webp) center/cover no-repeat;
+    animation:drift 45s ease-in-out infinite alternate;z-index:0;transition:opacity 1.2s ease}
+  .bg.see-through{opacity:var(--navy-op,.95)}
+  .card-bg{position:fixed;inset:0;z-index:0;background:center/cover no-repeat;opacity:0;transition:opacity 1.2s ease}
+  .card-bg.on{opacity:1}
+  /* تظليل خفيف أعلى وأسفل حتى يبقى الشعار والأزرار واضحة على الصور الفاتحة */
+  .card-bg::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(to bottom, rgba(12,20,29,.6), rgba(12,20,29,.1) 28%, rgba(12,20,29,.1) 72%, rgba(12,20,29,.65))}
+  @keyframes drift{to{transform:scale(1.08) translate(-1.5%,1%)}}
+  .glow{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(ellipse 45% 55% at 50% 50%, color-mix(in srgb,var(--teal) 26%,transparent), transparent 72%)}
+
+  .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;
+    padding:max(14px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom))}
+
+  header{display:flex;justify-content:center;padding-block:clamp(4px,1.5vh,18px) 0;flex:none}
+  .logo{height:clamp(54px,9vh,104px);width:auto;display:block;
+    filter:drop-shadow(0 6px 18px rgba(0,0,0,.35))}
+
+  .stage{position:relative;flex:1;min-height:0;perspective:1800px;touch-action:none;cursor:grab}
+  .stage:active{cursor:grabbing}
+  .card{position:absolute;left:50%;top:50%;width:var(--cw);aspect-ratio:1342/1848;
+    margin-left:calc(var(--cw) / -2);margin-top:calc(var(--cw) * 1848 / 1342 / -2);
+    will-change:transform,opacity,filter;transform-style:preserve-3d}
+  .inner{position:relative;width:100%;height:100%;
+    transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) scale(var(--press,1));
+    transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  .inner img{position:relative;width:100%;height:100%;display:block;pointer-events:none}
+  /* خلفية معتمة بشكل البطاقة حتى لا يظهر ما خلفها من خلال الأجزاء الشفافة */
+  .backing{position:absolute;inset:0;background:var(--bg-deep);
+    -webkit-mask:var(--shape) center / 100% 100% no-repeat;mask:var(--shape) center / 100% 100% no-repeat}
+  .fx{position:absolute;inset:0;overflow:hidden;pointer-events:none;
+    -webkit-mask:var(--src) center / 100% 100% no-repeat;mask:var(--src) center / 100% 100% no-repeat}
+  /* حافة بيضاء رفيعة بلمعة تدور حول شكل البطاقة */
+  @property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+  .edge{position:absolute;inset:0;pointer-events:none;
+    background:conic-gradient(from var(--ang), #fff, rgba(255,255,255,.06) 50%, #fff);
+    opacity:0;transition:opacity .6s ease;
+    -webkit-mask:var(--edge) center / 100% 100% no-repeat;mask:var(--edge) center / 100% 100% no-repeat;
+    animation:orbit 6s linear infinite}
+  @keyframes orbit{to{--ang:360deg}}
+  .card.active .edge{opacity:1}
+  .shine{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s;
+    background:radial-gradient(circle at var(--mx,50%) var(--my,30%), rgba(255,255,255,.28), transparent 45%);
+    mix-blend-mode:soft-light}
+  .card.active.touching .shine,.card.active:hover .shine{opacity:1}
+  .card.pressed .inner{--press:.965}
+
+  .ripple{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;
+    background:rgba(255,255,255,.55);pointer-events:none;animation:ripple .7s ease-out forwards}
+  @keyframes ripple{to{transform:scale(28);opacity:0}}
+  .card.launch .inner{animation:launch .5s cubic-bezier(.3,.7,.2,1)}
+  @keyframes launch{40%{transform:scale(1.06)}100%{transform:scale(1)}}
+
+  /* عبارة التنقل تحت البطاقة مباشرة */
+  .stage-wrap{position:relative;flex:1;min-height:0;display:flex}
+  .stage-wrap .stage{flex:1}
+  .hint{position:absolute;left:50%;top:calc(50% + var(--cw) * 1848 / 1342 / 2 + clamp(14px,2.4vh,30px));
+    transform:translateX(-50%);z-index:150;pointer-events:none;white-space:nowrap;
+    font-size:clamp(13px,1.05vw,17px);color:var(--ink);opacity:.6;display:flex;align-items:center;gap:.6em;
+    transition:opacity .5s}
+  .hint svg{width:1.35em;height:1.35em;animation:swipe 2.4s ease-in-out infinite}
+  @keyframes swipe{0%,100%{transform:translateX(0)}50%{transform:translateX(-10px)}}
+  .hint.hide{opacity:0}
+
+  footer{flex:none;display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding-block:clamp(6px,1.4vh,14px) clamp(2px,.8vh,8px)}
+  .socials{display:flex;gap:8px}
+  /* أزرار ناعمة: كبسولة داكنة شفافة مع سهم رفيع */
+  .pill{display:inline-flex;align-items:center;gap:.6em;height:clamp(36px,4.4vh,46px);
+    padding:0 clamp(14px,1.2vw,20px);border-radius:99px;color:var(--ink);text-decoration:none;
+    font:400 clamp(13px,1vw,16px)/1 var(--font);
+    background:rgba(40,44,52,.32);border:1px solid rgba(255,255,255,.08);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    transition:background .25s, transform .2s}
+  .pill img{height:clamp(12px,1.5vh,16px);width:auto;display:block}
+  .pill .chev{width:.95em;height:.95em;opacity:.85;transition:transform .25s}
+  .pill:hover{background:rgba(55,60,70,.5)}
+  .pill:hover .chev{transform:translateX(-2px)}
+  .pill:active{transform:scale(.95);background:rgba(70,76,88,.8)}
+  .pill:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+  @media (max-width:700px){
+    .socials{gap:6px}
+    .pill{padding:0 11px;height:34px;gap:.45em}
+    .pill img{height:11px}
+  }
+
+  /* صفحات الأقسام */
+  /* الإغلاق: تلاشي بطيء مع تكبير وتمويه خفيف، والرئيسية تظهر من خلفه */
+  .viewer{position:fixed;inset:0;z-index:300;background:var(--bg-deep);opacity:0;visibility:hidden;
+    transform:scale(1.04);filter:blur(10px);
+    transition:opacity 1.2s cubic-bezier(.4,0,.2,1), transform 1.2s cubic-bezier(.4,0,.2,1), filter 1.2s ease, visibility 0s 1.2s}
+  .viewer.open{opacity:1;visibility:visible;transform:none;filter:none;
+    transition:opacity .7s ease, transform .7s cubic-bezier(.2,.8,.2,1), filter .5s ease}
+  .app.returning{animation:welcomeBack 1.4s cubic-bezier(.2,.8,.2,1)}
+  @keyframes welcomeBack{from{opacity:.2;transform:scale(.94)}to{opacity:1;transform:none}}
+  .viewer .vframe{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);
+    width:min(86vw, calc(78vh * 16 / 9));aspect-ratio:16/9;border-radius:18px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.45);background:#000}
+  .viewer .vframe video{background:#000}
+  .viewer .vbg.sharp{inset:0;filter:none}
+  .viewer .vcap{position:absolute;right:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:2;color:#fff;
+    height:clamp(36px,4.4vh,46px);display:flex;align-items:center;gap:.35em;
+    font:400 clamp(15px,1.4vw,22px)/1.4 var(--font);text-shadow:0 2px 12px rgba(0,0,0,.25)}
+  .viewer .vcap bdi{font-weight:500}
+  @media (max-width:700px){ .viewer .vcap{height:auto;min-height:34px;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:2px;font-size:14px;line-height:1.35} }
+  .viewer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg-deep)}
+  .viewer video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent}
+  .viewer .vbg{position:absolute;inset:-6%;background:center/cover no-repeat;filter:blur(28px) brightness(.45)}
+  .home{position:fixed;left:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:310;
+    background:rgba(20,28,38,.55);opacity:0;visibility:hidden;transition:opacity .4s, visibility 0s .4s, background .25s, transform .2s}
+  .viewer.open ~ .home{opacity:1;visibility:visible;transition:opacity .5s .4s, background .25s, transform .2s}
+  .home:hover{background:rgba(20,28,38,.75)}
+  .vprog{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--teal);z-index:2}
+
+  .toast{position:fixed;left:50%;bottom:22vh;transform:translate(-50%,16px);z-index:20;
+    background:rgba(8,14,20,.82);border:1px solid var(--chip-line);padding:12px 24px;border-radius:99px;
+    font-size:clamp(14px,1.2vw,19px);opacity:0;transition:.3s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (prefers-reduced-motion:reduce){
+    .bg,.hint svg,.edge{animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="cardBgs"></div>
+<div class="bg" id="navy"></div>
+<div class="glow"></div>
+
+<div class="app">
+  <header><img class="logo" src="img/logo.webp" alt="المعهد الوطني للتطوير المهني التعليمي"></header>
+
+  <div class="stage-wrap" id="wrap">
+    <main class="stage" id="stage" aria-label="أقسام المعهد"></main>
+    <div class="hint" id="hint">
+      اسحب للتنقل · اضغط على البطاقة لمعرفة المزيد
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M12 10.5V9a1.5 1.5 0 0 1 3 0v2"/><path d="M15 10.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.6 14.6a1.5 1.5 0 0 1 2.5-1.7L9 16"/></svg>
+    </div>
+  </div>
+
+  <footer>
+    <nav class="socials" aria-label="حسابات المعهد">
+      <a class="pill" href="https://niepd.gov.sa/" target="_blank" rel="noopener"><img src="img/web.webp" alt="niepd.gov.sa"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+      <a class="pill" href="https://x.com/niepd_edu" target="_blank" rel="noopener"><img src="img/x.webp" alt="X: niepd_edu"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+    </nav>
+    <a class="pill" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=UYPKa9MBUkKF6r2o-NI1vR5v2dHRH9BDqhIDnrBnhOtUNEJEUUU5Q1FXSFdUNkVTSFoxOEFWQkRPWC4u" target="_blank" rel="noopener">قيّم زيارتك<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="viewer" id="viewer" aria-hidden="true"></div>
+<button class="pill home" id="home" type="button">العودة للصفحة الرئيسية<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+
+<script>
+/* ============ الإعدادات ============ */
+const CARDS = [
+  { name:"الماجستير المهني",      img:"img/master.webp",    page:"pages/master.html", bg:"img/bg-master.webp", navy:0.6 },
+  { name:"نمو",                  img:"img/namaa.webp",     video:"media/namaa.mp4", frame:true, caption:"لتصفح المنصة <bdi>growth.futurex.sa</bdi>", bg:"img/bg-namaa.webp" },
+  { name:"ملهم",                 img:"img/olhem.webp",     page:"pages/olhem.html", bg:"img/bg-olhem.webp", navy:0.6 },
+  { name:"التحول الإستراتيجي",    img:"img/transform.webp", page:"pages/transform.html", bg:"img/bg-transform.webp" },
+];
+const NAVY_OPACITY = 0.05;   // شفافية الخلفية الكحلية عند ظهور بطاقة لها خلفية خاصة
+const AUTO_EVERY   = 4000;  // التنقل التلقائي (ملي ثانية)
+const RESUME_AFTER = 7000;  // متى يرجع التلقائي بعد آخر لمسة
+const PAGE_IDLE    = 15000; // داخل صفحة القسم: الرجوع للرئيسية بعد 15 ثانية بدون تمرير أو لمس
+
+/* ============ الحالة ============ */
+const stage = document.getElementById('stage');
+const navy = document.getElementById('navy');
+navy.style.setProperty('--navy-op', NAVY_OPACITY);
+const cardBgs = CARDS.map(c=>{
+  if(!c.bg) return null;
+  const d=document.createElement('div'); d.className='card-bg'; d.style.backgroundImage=`url(${c.bg})`;
+  document.getElementById('cardBgs').appendChild(d); return d;
+});
+let shownCard = -1;
+function showCardBg(i){
+  if (i===shownCard) return; shownCard=i;
+  cardBgs.forEach((d,k)=>d && d.classList.toggle('on', k===i));
+  navy.style.setProperty('--navy-op', CARDS[i].navy ?? NAVY_OPACITY);
+  navy.classList.toggle('see-through', !!cardBgs[i]);
+}
+const hint = document.getElementById('hint');
+const N = CARDS.length;
+let M = N, half = 2, cw = 300, step = 150;
+let els = [];
+let pos = 0, target = 0, lastInteract = -1e9;
+
+const wrap = (x,m)=>{ x=((x%m)+m)%m; return x>m/2 ? x-m : x; };
+const activeSlot = ()=>((Math.round(pos)%M)+M)%M;
+
+/* ============ المقاسات حسب الشاشة ============ */
+function measure(){
+  const r = stage.getBoundingClientRect();
+  const vw = r.width, vh = r.height;
+  const wide = vw/vh > 1.3;
+  cw = Math.min(vh*0.7*1342/1848, vw*(wide?0.5:0.6), 440);
+  step = cw * (wide ? 0.66 : 0.52);
+  const side = (vw - cw)/2;
+  half = Math.max(1, Math.min(4, Math.ceil(side/step)));
+  document.getElementById('wrap').style.setProperty('--cw', cw+'px');
+  const needed = half*2+2;
+  const newM = needed > N ? N*2 : N;
+  if (newM !== M || !els.length) build(newM);
+}
+
+function build(newM){
+  const cur = els.length ? activeSlot() % N : 0;
+  stage.innerHTML=''; M = newM;
+  els = Array.from({length:M}, (_,s)=>{
+    const c = CARDS[s%N];
+    const d = document.createElement('div');
+    d.className='card'; d.dataset.slot=s;
+    d.innerHTML = `<div class="inner"><div class="backing"></div><img src="${c.img}" alt="${c.name}" draggable="false"><div class="fx"><div class="shine"></div></div><div class="edge"></div></div>`;
+    d.querySelector('.inner').style.setProperty('--src', `url(${c.img})`);
+    d.querySelector('.inner').style.setProperty('--shape', `url(${c.img.replace('img/','img/shape-')})`);
+    d.querySelector('.inner').style.setProperty('--edge', `url(${c.img.replace('img/','img/edge-')})`);
+    stage.appendChild(d); return d;
+  });
+  pos = target = cur;
+}
+
+/* ============ الرسم ============ */
+function layout(){
+  const act = activeSlot();
+  showCardBg(act % N);
+  els.forEach((el,s)=>{
+    const o = wrap(s - pos, M), a = Math.abs(o);
+    const x = -o * step;
+    const scale = Math.max(.55, 1 - a*0.11);
+    const rot = Math.max(-1,Math.min(1,o)) * -16;
+    let op = 1;   // البطاقات معتمة حتى لا تتداخل شفافيتها، والتخفيت بالإضاءة
+    const edge = half + 0.5;
+    if (a > half - 0.1) op *= Math.max(0, (edge - a)/0.6);
+    const br = a<=1 ? 1 - a*0.5 : Math.max(.18, 0.5 - (a-1)*0.16);
+    el.style.transform = `translate3d(${x}px,0,${-a*150}px) rotateY(${rot}deg) scale(${scale})`;
+    el.style.opacity = op.toFixed(3);
+    el.style.filter = `brightness(${br.toFixed(3)}) saturate(${Math.max(.4,1-a*.2).toFixed(2)})`;
+    el.style.zIndex = 100 - Math.round(a*10);
+    el.style.visibility = op < 0.01 ? 'hidden' : 'visible';
+    el.classList.toggle('active', s===act && a<0.3);
+  });
+}
+
+function tick(){
+  if (!dragging){
+    pos += (target-pos)*0.085;
+    if (Math.abs(target-pos)<0.0005) pos=target;
+  }
+  layout();
+  hint.classList.toggle('hide', performance.now()-lastInteract < RESUME_AFTER);
+  requestAnimationFrame(tick);
+}
+
+setInterval(()=>{
+  if (dragging || document.hidden || viewerOpen) return;
+  if (performance.now()-lastInteract < RESUME_AFTER) return;
+  target = Math.round(target)+1;
+}, AUTO_EVERY);
+
+/* ============ اللمس والسحب ============ */
+let dragging=false, sx=0, sy=0, sp=0, moved=0, downCard=null, vx=0, lx=0, lt=0;
+stage.addEventListener('pointerdown', e=>{
+  dragging=true; sx=lx=e.clientX; sy=e.clientY; lt=performance.now(); sp=pos; moved=0; vx=0;
+  downCard = e.target.closest('.card');
+  lastInteract = lt;
+  if (downCard){ downCard.classList.add('pressed','touching'); ripple(downCard,e); tiltTo(downCard,e); }
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', e=>{
+  if (!dragging){                       // ماوس فوق البطاقة: إمالة خفيفة
+    const c = e.target.closest('.card.active');
+    els.forEach(el=>{ if(el!==c) resetTilt(el); });
+    if (c) tiltTo(c,e);
+    return;
+  }
+  const dx = e.clientX-sx;
+  moved = Math.max(moved, Math.hypot(dx, e.clientY-sy));
+  if (moved > 10 && downCard){ downCard.classList.remove('pressed'); resetTilt(downCard); }
+  pos = sp + dx/step;
+  const now=performance.now(); vx=(e.clientX-lx)/Math.max(1,now-lt); lx=e.clientX; lt=now; lastInteract=now;
+});
+function endDrag(){
+  if(!dragging) return;
+  dragging=false; lastInteract=performance.now();
+  if (downCard){ downCard.classList.remove('pressed','touching'); resetTilt(downCard); }
+  if (moved < 10 && downCard){
+    const s = +downCard.dataset.slot, o = wrap(s-pos, M);
+    if (Math.abs(o) < 0.5) openCard(downCard, s%N);
+    else target = Math.round(pos + o);
+    return;
+  }
+  target = Math.round(pos + Math.max(-2, Math.min(2, vx*0.9)));
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+stage.addEventListener('pointerleave', ()=>{ if(!dragging) els.forEach(resetTilt); });
+
+/* أسهم لوحة المفاتيح */
+window.addEventListener('keydown', e=>{
+  if (viewerOpen && e.key!=='Escape') return;
+  if (e.key==='ArrowLeft'){ target=Math.round(target)+1; lastInteract=performance.now(); }
+  if (e.key==='ArrowRight'){ target=Math.round(target)-1; lastInteract=performance.now(); }
+  if (e.key==='Escape'){ goHome(); return; }
+  if (viewerOpen) return;
+  if (e.key==='Enter'){ const el=els[activeSlot()]; openCard(el, activeSlot()%N); }
+});
+
+/* ============ التفاعل البصري ============ */
+function tiltTo(card,e){
+  const inner = card.querySelector('.inner'), r = inner.getBoundingClientRect();
+  const px = (e.clientX-r.left)/r.width, py = (e.clientY-r.top)/r.height;
+  inner.style.setProperty('--ry', ((px-.5)*14).toFixed(2)+'deg');
+  inner.style.setProperty('--rx', ((.5-py)*14).toFixed(2)+'deg');
+  inner.style.setProperty('--mx', (px*100)+'%');
+  inner.style.setProperty('--my', (py*100)+'%');
+}
+function resetTilt(card){
+  const inner = card.querySelector('.inner');
+  inner.style.setProperty('--rx','0deg'); inner.style.setProperty('--ry','0deg');
+}
+function ripple(card,e){
+  const inner = card.querySelector('.inner'), fx = card.querySelector('.fx'), r = inner.getBoundingClientRect();
+  const sc = r.width / inner.offsetWidth || 1;
+  const d = document.createElement('span'); d.className='ripple';
+  d.style.left = (e.clientX-r.left)/sc+'px'; d.style.top=(e.clientY-r.top)/sc+'px';
+  fx.appendChild(d); setTimeout(()=>d.remove(), 750);
+}
+
+/* ============ فتح الأقسام ============ */
+const viewer = document.getElementById('viewer');
+let viewerOpen = false, idleTimer = null, pageCache = {};
+function openCard(el,i){
+  if (viewerOpen) return;
+  el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch');
+  const c = CARDS[i];
+  if (c.video){ setTimeout(()=>openVideo(c), 250); return; }
+  if (!c.page){ toast('صفحة «'+c.name+'» تُضاف قريباً'); return; }
+  setTimeout(()=>openPage(c), 250);
+}
+function showViewer(){
+  viewerOpen = true; viewer.setAttribute('aria-hidden','false');
+  requestAnimationFrame(()=>viewer.classList.add('open'));
+}
+function goHome(){
+  if (!viewerOpen) return;
+  clearTimeout(idleTimer); viewerOpen = false;
+  // خفض صوت الفيديو تدريجياً
+  const v = viewer.querySelector('video');
+  if (v && !v.paused){ const v0=v.volume, t0=performance.now();
+    (function fade(t){ const k=Math.min(1,(t-t0)/900); v.volume=v0*(1-k); if(k<1) requestAnimationFrame(fade); else v.pause(); })(t0); }
+  viewer.classList.remove('open'); viewer.setAttribute('aria-hidden','true');
+  const app = document.querySelector('.app');
+  app.classList.remove('returning'); void app.offsetWidth; app.classList.add('returning');
+  setTimeout(()=>{ if(!viewerOpen) viewer.innerHTML=''; app.classList.remove('returning'); }, 1400);
+  lastInteract = performance.now();
+}
+document.getElementById('home').addEventListener('click', goHome);
+
+/* صفحة HTML: تُحمَّل داخل إطار، وترجع للرئيسية بعد 15 ثانية بدون تفاعل */
+function armIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(idleCheck, PAGE_IDLE); }
+function idleCheck(){
+  // إذا كان في الصفحة فيديو يعمل، ننتظر انتهاءه قبل العودة
+  try{
+    const f = viewer.querySelector('iframe'), d = f && f.contentDocument;
+    const playing = d && [...d.querySelectorAll('video')].some(v=>!v.paused && !v.ended);
+    if (playing){ armIdle(); return; }
+  }catch(e){}
+  goHome();
+}
+async function openPage(c){
+  viewer.innerHTML = '';
+  const f = document.createElement('iframe');
+  f.title = c.name;
+  viewer.appendChild(f);
+  showViewer(); armIdle();
+  try{
+    if (!pageCache[c.page]) pageCache[c.page] = await (await fetch(c.page)).text();
+    f.srcdoc = pageCache[c.page];
+  }catch(err){ f.src = c.page; }
+  f.addEventListener('load', ()=>{
+    try{
+      const w = f.contentWindow, d = f.contentDocument;
+      ['pointerdown','pointermove','touchstart','touchmove','wheel','keydown'].forEach(ev=>
+        d.addEventListener(ev, armIdle, {capture:true, passive:true}));
+      w.addEventListener('scroll', armIdle, {passive:true});
+    }catch(e){}
+  });
+}
+
+/* الفيديو: يعمل حتى نهايته ثم يرجع للرئيسية */
+function openVideo(c){
+  const vid = `<video src="${c.video}" playsinline autoplay preload="auto"></video>`;
+  viewer.innerHTML = c.frame
+    ? `<div class="vbg sharp" style="background-image:url(${c.bg||c.img})"></div><div class="vframe">${vid}</div>${c.caption?`<div class="vcap">${c.caption}</div>`:''}<div class="vprog"></div>`
+    : `<div class="vbg" style="background-image:url(${c.bg||c.img})"></div>${vid}<div class="vprog"></div>`;
+  const v = viewer.querySelector('video'), bar = viewer.querySelector('.vprog');
+  clearTimeout(idleTimer);   // لا يوجد إغلاق تلقائي أثناء الفيديو
+  v.addEventListener('ended', ()=>{ if (v.duration && v.currentTime >= v.duration - 0.5) goHome(); });
+  v.addEventListener('error', ()=>{ toast('تعذّر تشغيل الفيديو'); });
+  v.addEventListener('timeupdate', ()=>{ if(v.duration) bar.style.width = (v.currentTime/v.duration*100)+'%'; });
+  showViewer();
+  const p = v.play();
+  if (p && p.catch) p.catch(()=>{ v.muted = true; v.play().catch(()=>{}); });
+}
+function toast(t){
+  const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+document.addEventListener('contextmenu', e=>e.preventDefault());
+document.addEventListener('gesturestart', e=>e.preventDefault());
+window.addEventListener('resize', ()=>{ measure(); });
+measure(); tick();
+</script>
+</body>
+</html>
