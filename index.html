@@ -132,7 +132,11 @@
     font:400 clamp(15px,1.4vw,22px)/1.4 var(--font);text-shadow:0 2px 12px rgba(0,0,0,.25)}
   .viewer .vcap bdi{font-weight:500}
   @media (max-width:700px){ .viewer .vcap{height:auto;min-height:34px;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:2px;font-size:14px;line-height:1.35} }
-  .viewer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg-deep)}
+  .viewer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg-deep);visibility:hidden}
+  .viewer iframe.on{visibility:visible;z-index:1}
+  .viewer .vlayer{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .viewer .vlayer:not(:empty){pointer-events:auto}
+  .viewer .vframe-full{position:absolute;inset:0}
   .viewer video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:transparent}
   .viewer .vbg{position:absolute;inset:-6%;background:center/cover no-repeat;filter:blur(28px) brightness(.45)}
   .home{position:fixed;left:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:310;
@@ -314,13 +318,16 @@ function endDrag(){
   if (downCard){ downCard.classList.remove('pressed','touching'); resetTilt(downCard); }
   if (moved < 10 && downCard){
     const s = +downCard.dataset.slot, o = wrap(s-pos, M);
-    if (Math.abs(o) < 0.5) openCard(downCard, s%N);
+    if (Math.abs(o) < 0.5){ pendingOpen = {el:downCard, i:s%N}; setTimeout(()=>{ if(pendingOpen){ const p=pendingOpen; pendingOpen=null; openCard(p.el,p.i);} }, 350); }
     else target = Math.round(pos + o);
     return;
   }
   target = Math.round(pos + Math.max(-2, Math.min(2, vx*0.9)));
 }
+let pendingOpen = null;
 stage.addEventListener('pointerup', endDrag);
+// الفتح يتم في حدث click لأنه يُعتبر لمسة حقيقية في متصفحات الجوال (يسمح بتشغيل الصوت)
+stage.addEventListener('click', ()=>{ if(pendingOpen){ const p=pendingOpen; pendingOpen=null; openCard(p.el,p.i); } });
 stage.addEventListener('pointercancel', endDrag);
 stage.addEventListener('pointerleave', ()=>{ if(!dragging) els.forEach(resetTilt); });
 
@@ -356,81 +363,117 @@ function ripple(card,e){
 }
 
 /* ============ فتح الأقسام ============ */
+/* ملاحظة: متصفحات الجوال (خصوصاً آيفون) لا تشغّل الصوت إلا إذا بدأ التشغيل
+   داخل لمسة المستخدم نفسها، لذلك يبدأ الفيديو مباشرة عند اللمس بدون أي تأخير،
+   وصفحة ملهم تُحمَّل مسبقاً في الخلفية حتى يكون الفيديو جاهزاً للتشغيل فوراً. */
 const viewer = document.getElementById('viewer');
-let viewerOpen = false, idleTimer = null, pageCache = {};
+viewer.innerHTML = '<div class="vlayer" id="vlayer"></div>';
+const vlayer = document.getElementById('vlayer');
+let viewerOpen = false, idleTimer = null, activeFrame = null;
+const frames = {};
+
 function openCard(el,i){
   if (viewerOpen) return;
   el.classList.remove('launch'); void el.offsetWidth; el.classList.add('launch');
   const c = CARDS[i];
-  if (c.video){ setTimeout(()=>openVideo(c), 250); return; }
+  if (c.video){ openVideo(c); return; }
   if (!c.page){ toast('صفحة «'+c.name+'» تُضاف قريباً'); return; }
-  setTimeout(()=>openPage(c), 250);
+  openPage(c);
 }
 function showViewer(){
   viewerOpen = true; viewer.setAttribute('aria-hidden','false');
   requestAnimationFrame(()=>viewer.classList.add('open'));
 }
+function fadeOutVideo(v){
+  if (!v || v.paused) return;
+  const v0=v.volume, t0=performance.now();
+  (function fade(t){ const k=Math.min(1,(t-t0)/900); try{v.volume=v0*(1-k);}catch(e){} if(k<1) requestAnimationFrame(fade); else { v.pause(); try{v.volume=1;}catch(e){} } })(t0);
+}
+function frameVideos(f){ try{ return [...f.contentDocument.querySelectorAll('video')]; }catch(e){ return []; } }
 function goHome(){
   if (!viewerOpen) return;
   clearTimeout(idleTimer); viewerOpen = false;
-  // خفض صوت الفيديو تدريجياً
-  const v = viewer.querySelector('video');
-  if (v && !v.paused){ const v0=v.volume, t0=performance.now();
-    (function fade(t){ const k=Math.min(1,(t-t0)/900); v.volume=v0*(1-k); if(k<1) requestAnimationFrame(fade); else v.pause(); })(t0); }
+  fadeOutVideo(vlayer.querySelector('video'));
+  if (activeFrame) frameVideos(activeFrame).forEach(fadeOutVideo);
   viewer.classList.remove('open'); viewer.setAttribute('aria-hidden','true');
   const app = document.querySelector('.app');
   app.classList.remove('returning'); void app.offsetWidth; app.classList.add('returning');
-  setTimeout(()=>{ if(!viewerOpen) viewer.innerHTML=''; app.classList.remove('returning'); }, 1400);
+  const closing = activeFrame;
+  setTimeout(()=>{
+    if (viewerOpen) return;
+    vlayer.innerHTML='';
+    if (closing){ closing.classList.remove('on'); try{ closing.contentWindow.scrollTo(0,0); }catch(e){} }
+    app.classList.remove('returning');
+  }, 1400);
+  activeFrame = null;
   lastInteract = performance.now();
 }
 document.getElementById('home').addEventListener('click', goHome);
 
-/* صفحة HTML: تُحمَّل داخل إطار، وترجع للرئيسية بعد 15 ثانية بدون تفاعل */
+/* صفحة HTML: ترجع للرئيسية بعد 15 ثانية بدون تفاعل، إلا إذا كان فيها فيديو يعمل */
 function armIdle(){ clearTimeout(idleTimer); idleTimer = setTimeout(idleCheck, PAGE_IDLE); }
 function idleCheck(){
-  // إذا كان في الصفحة فيديو يعمل، ننتظر انتهاءه قبل العودة
-  try{
-    const f = viewer.querySelector('iframe'), d = f && f.contentDocument;
-    const playing = d && [...d.querySelectorAll('video')].some(v=>!v.paused && !v.ended);
-    if (playing){ armIdle(); return; }
-  }catch(e){}
+  if (!viewerOpen) return;
+  if (activeFrame && frameVideos(activeFrame).some(v=>!v.paused && !v.ended)){ armIdle(); return; }
   goHome();
 }
-async function openPage(c){
-  viewer.innerHTML = '';
+function getFrame(page){
+  if (frames[page]) return frames[page];
   const f = document.createElement('iframe');
-  f.title = c.name;
-  f.allow = 'autoplay; fullscreen';   // يسمح بتشغيل الفيديو بالصوت داخل الصفحة
+  f.className = 'pf'; f.allow = 'autoplay; fullscreen';
   viewer.appendChild(f);
-  showViewer(); armIdle();
-  try{
-    if (!pageCache[c.page]) pageCache[c.page] = await (await fetch(c.page)).text();
-    f.srcdoc = pageCache[c.page];
-  }catch(err){ f.src = c.page; }
   f.addEventListener('load', ()=>{
+    f.dataset.ready = '1';
     try{
       const w = f.contentWindow, d = f.contentDocument;
       ['pointerdown','pointermove','touchstart','touchmove','wheel','keydown'].forEach(ev=>
-        d.addEventListener(ev, armIdle, {capture:true, passive:true}));
-      w.addEventListener('scroll', armIdle, {passive:true});
+        d.addEventListener(ev, ()=>{ if (f===activeFrame) armIdle(); }, {capture:true, passive:true}));
+      w.addEventListener('scroll', ()=>{ if (f===activeFrame) armIdle(); }, {passive:true});
+      if (f===activeFrame) startFrameVideo(f);
     }catch(e){}
   });
+  fetch(page).then(r=>r.text()).then(html=>{ f.srcdoc = html; }).catch(()=>{ f.src = page; });
+  frames[page] = f;
+  return f;
 }
+function startFrameVideo(f){
+  frameVideos(f).forEach(v=>{
+    try{ v.currentTime = 0; }catch(e){}
+    v.muted = false; v.volume = 1;
+    const p = v.play();
+    if (p && p.catch) p.catch(()=>{ v.muted = true; v.play().catch(()=>{}); });
+  });
+}
+function openPage(c){
+  const f = getFrame(c.page);
+  f.title = c.name;
+  Object.values(frames).forEach(x=>x.classList.toggle('on', x===f));
+  activeFrame = f;
+  try{ f.contentWindow.scrollTo(0,0); }catch(e){}
+  if (f.dataset.ready) startFrameVideo(f);   // يبدأ داخل لمسة المستخدم مباشرة
+  showViewer(); armIdle();
+}
+// تحميل الصفحات مسبقاً في الخلفية
+CARDS.forEach(c=>{ if (c.page) getFrame(c.page); });
 
 /* الفيديو: يعمل حتى نهايته ثم يرجع للرئيسية */
 function openVideo(c){
-  const vid = `<video src="${c.video}" playsinline autoplay preload="auto"></video>`;
-  viewer.innerHTML = c.frame
-    ? `<div class="vbg sharp" style="background-image:url(${c.bg||c.img})"></div><div class="vframe">${vid}</div>${c.caption?`<div class="vcap">${c.caption}</div>`:''}<div class="vprog"></div>`
-    : `<div class="vbg" style="background-image:url(${c.bg||c.img})"></div>${vid}<div class="vprog"></div>`;
-  const v = viewer.querySelector('video'), bar = viewer.querySelector('.vprog');
+  activeFrame = null;
+  Object.values(frames).forEach(x=>x.classList.remove('on'));
+  vlayer.innerHTML = c.frame
+    ? `<div class="vbg sharp" style="background-image:url(${c.bg||c.img})"></div><div class="vframe"></div>${c.caption?`<div class="vcap">${c.caption}</div>`:''}<div class="vprog"></div>`
+    : `<div class="vbg" style="background-image:url(${c.bg||c.img})"></div><div class="vframe-full"></div><div class="vprog"></div>`;
+  const v = document.createElement('video');
+  v.src = c.video; v.playsInline = true; v.setAttribute('playsinline',''); v.preload = 'auto';
+  (vlayer.querySelector('.vframe') || vlayer.querySelector('.vframe-full')).appendChild(v);
+  const bar = vlayer.querySelector('.vprog');
   clearTimeout(idleTimer);   // لا يوجد إغلاق تلقائي أثناء الفيديو
   v.addEventListener('ended', ()=>{ if (v.duration && v.currentTime >= v.duration - 0.5) goHome(); });
   v.addEventListener('error', ()=>{ toast('تعذّر تشغيل الفيديو'); });
   v.addEventListener('timeupdate', ()=>{ if(v.duration) bar.style.width = (v.currentTime/v.duration*100)+'%'; });
-  showViewer();
-  const p = v.play();
+  const p = v.play();   // داخل لمسة المستخدم مباشرة حتى يعمل الصوت
   if (p && p.catch) p.catch(()=>{ v.muted = true; v.play().catch(()=>{}); });
+  showViewer();
 }
 function toast(t){
   const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show');
